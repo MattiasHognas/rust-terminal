@@ -14,7 +14,7 @@ use std::{
 };
 use tui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table},
     Terminal,
@@ -54,7 +54,8 @@ struct TableConfig {
     columnweight: Option<Vec<u16>>,
     align: Align,
     maxwidth: Option<u16>,
-    maxheight: Option<usize>,
+    maxrows: Option<usize>,         // formerly maxheight
+    maxrowheight: Option<u16>,      // visual height per row
     source: TableSource,
 }
 
@@ -103,14 +104,50 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     loop {
         terminal.draw(|f| {
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .margin(1)
-                .constraints(vec![Constraint::Length(10); runtime_tables.len()])
-                .split(f.size());
+            let term_width = f.size().width;
+            let term_height = f.size().height;
+            let mut current_x = 0;
+            let mut current_y = 0;
+            let mut max_row_height = 0;
+            let mut positions = Vec::new();
+
+            for table in &runtime_tables {
+                let row_count = table
+                    .data
+                    .len()
+                    .min(table.config.maxrows.unwrap_or(usize::MAX));
+                let per_row_height = table.config.maxrowheight.unwrap_or(1);
+                let header_height = 1;
+                let table_height = (row_count as u16 * per_row_height) + header_height;
+
+                let table_width = term_width / 2;
+
+                if current_x + table_width > term_width || matches!(table.config.align, Align::Below) {
+                    current_x = 0;
+                    current_y += max_row_height;
+                    max_row_height = 0;
+                }
+
+                if current_y + table_height > term_height {
+                    break;
+                }
+
+                let area = Rect {
+                    x: current_x,
+                    y: current_y,
+                    width: table_width.min(term_width - current_x),
+                    height: table_height.min(term_height - current_y),
+                };
+                positions.push(area);
+
+                current_x += area.width;
+                max_row_height = max_row_height.max(area.height);
+            }
 
             for (i, table) in runtime_tables.iter().enumerate() {
-                render_table(f, chunks[i], &table.config, &table.data, &table.last_error);
+                if i < positions.len() {
+                    render_table(f, positions[i], &table.config, &table.data, &table.last_error);
+                }
             }
         })?;
 
@@ -165,8 +202,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 if table.retry_count >= MAX_RETRIES {
                                     let delay = INITIAL_BACKOFF_SECS
                                         * (1 << (table.retry_count - MAX_RETRIES));
-                                    table.backoff_until =
-                                        Instant::now() + Duration::from_secs(delay);
+                                    table.backoff_until = Instant::now() + Duration::from_secs(delay);
                                 }
                             }
                         }
@@ -210,8 +246,7 @@ fn setup_watcher(path: &str) -> (RecommendedWatcher, Receiver<()>) {
                 let _ = tx.send(());
             }
         }
-    })
-    .expect("Failed to create watcher");
+    }).expect("Failed to create watcher");
 
     watcher
         .watch(std::path::Path::new(path), RecursiveMode::NonRecursive)
@@ -224,8 +259,7 @@ fn load_table_data(source: &TableSource) -> Result<Vec<Vec<String>>, String> {
     match source {
         TableSource::Static { data } => Ok(data.clone()),
         TableSource::File { path, mapping, .. } => {
-            let text =
-                std::fs::read_to_string(path).map_err(|e| format!("File error: {}", e))?;
+            let text = std::fs::read_to_string(path).map_err(|e| format!("File error: {}", e))?;
             parse_mapped_json(&text, mapping.clone())
         }
         TableSource::Url { url, mapping, .. } => {
@@ -277,13 +311,13 @@ fn truncate(text: &str, max: usize) -> String {
 
 fn render_table<B: tui::backend::Backend>(
     f: &mut tui::Frame<B>,
-    area: tui::layout::Rect,
+    area: Rect,
     config: &TableConfig,
     data: &[Vec<String>],
     error: &Option<String>,
 ) {
     let max_width = config.maxwidth.unwrap_or(20);
-    let max_rows = config.maxheight.unwrap_or(data.len());
+    let max_rows = config.maxrows.unwrap_or(data.len());
 
     let header_cells = config
         .headers
