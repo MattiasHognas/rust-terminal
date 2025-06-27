@@ -1,0 +1,45 @@
+[
+  {
+    "title": "Static Users",
+    "headers": ["Name", "Age", "Email"],
+    "columnweight": [2,1,3],
+    "align": "below",
+    "maxwidth": 20,
+    "maxheight": 3,
+    "source": {
+      "type": "static",
+      "data": [
+        ["Alice", "30", "alice@example.com"],
+        ["Bob", "25", "bob@example.com"]
+      ]
+    }
+  },
+  {
+    "title": "Scores From File",
+    "headers": ["Game", "Score"],
+    "columnweight": [3,1],
+    "align": "right",
+    "maxwidth": 15,
+    "maxheight": 4,
+    "source": {
+      "type": "file",
+      "path": "scores.json",
+      "refresh_secs": 10,
+      "mapping": ["game", "score"]
+    }
+  },
+  {
+    "title": "Live API",
+    "headers": ["Item", "Value"],
+    "columnweight": [2,2],
+    "align": "below",
+    "maxwidth": 25,
+    "maxheight": 5,
+    "source": {
+      "type": "url",
+      "url": "https://example.com/data.json",
+      "refresh_secs": 15,
+      "mapping": ["item", "value"]
+    }
+  }
+]
