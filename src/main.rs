@@ -16,7 +16,6 @@ use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
     style::{Modifier, Style},
-    text::Span,
     widgets::{Block, Borders, Cell, Row, Table},
     Terminal,
 };
