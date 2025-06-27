@@ -1,6 +1,6 @@
 {
   "name": "Rust Dev Container",
-  "image": "mcr.microsoft.com/devcontainers/rust:1",  // official container with Rust + tools
+  "image": "mcr.microsoft.com/devcontainers/rust:1",
   "features": {
     "git": "latest"
   },
@@ -14,6 +14,7 @@
     }
   },
   "mounts": [
+    "source=${localWorkspaceFolder}/tables.json,target=/workspace/tables.json,type=bind",
     "source=${localWorkspaceFolder}/scores.json,target=/workspace/scores.json,type=bind"
   ],
   "postCreateCommand": "cargo check"
