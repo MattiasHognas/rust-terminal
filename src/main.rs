@@ -84,7 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|cfg| {
             let (data, err) = match load_table_data(&cfg.source) {
                 Ok(d) => (d, None),
-                Err(e) => (vec![vec![""]], Some(e)),
+                Err(e) => (vec![vec![""].to_string()], Some(e)),
             };
             RuntimeTable {
                 config: cfg,
@@ -129,7 +129,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .map(|cfg| {
                     let (data, err) = match load_table_data(&cfg.source) {
                         Ok(d) => (d, None),
-                        Err(e) => (vec![vec![""]], Some(e)),
+                        Err(e) => (vec![vec![""].to_string()], Some(e)),
                     };
                     RuntimeTable {
                         config: cfg,
