@@ -1,0 +1,20 @@
+{
+  "name": "Rust Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/rust:1",  // official container with Rust + tools
+  "features": {
+    "git": "latest"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "ms-vscode.cpptools",
+        "vadimcn.vscode-lldb"
+      ]
+    }
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder}/scores.json,target=/workspace/scores.json,type=bind"
+  ],
+  "postCreateCommand": "cargo check"
+}
