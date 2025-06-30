@@ -1,10 +1,10 @@
 # rust-terminal
 
-## Dev
+## Development
 cargo check
 
 ## Test
 cargo test
 
-## Bulld executable
+## Bulld
 cargo build
