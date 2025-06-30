@@ -366,8 +366,7 @@ fn render_table(
                         Style::default()
                     },
                 ),
-        )
-        .widths(&column_widths);
+        );
 
     f.render_widget(table, area);
 }
