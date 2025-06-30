@@ -9,13 +9,13 @@ use std::{
     error::Error,
     fs::File,
     io::{self, Read},
-    sync::mpsc::{channel, Receiver},
+    sync::mpsc::channel,
     time::{Duration, Instant},
 };
-use tui::{
+use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Rect},
-    style::{Modifier, Style},
+    style::{Modifier, Style, Color},
     widgets::{Block, Borders, Cell, Row, Table},
     Terminal,
 };
@@ -309,8 +309,8 @@ fn truncate(text: &str, max: usize) -> String {
     }
 }
 
-fn render_table<B: tui::backend::Backend>(
-    f: &mut tui::Frame<B>,
+fn render_table(
+    f: &mut ratatui::Frame<CrosstermBackend<std::io::Stdout>>,
     area: Rect,
     config: &TableConfig,
     data: &[Vec<String>],
@@ -322,13 +322,19 @@ fn render_table<B: tui::backend::Backend>(
     let header_cells = config
         .headers
         .iter()
-        .map(|h| Cell::from(truncate(h, max_width as usize)).style(Style::default().add_modifier(Modifier::BOLD)));
+        .map(|h| {
+            Cell::from(truncate(h, max_width as usize))
+                .style(Style::default().add_modifier(Modifier::BOLD))
+        });
     let header = Row::new(header_cells).bottom_margin(1);
 
-    let rows = data.iter().take(max_rows).map(|row| {
-        let cells = row.iter().map(|cell| Cell::from(truncate(cell, max_width as usize)));
-        Row::new(cells)
-    });
+    let rows = data
+        .iter()
+        .take(max_rows)
+        .map(|row| {
+            let cells = row.iter().map(|c| Cell::from(truncate(c, max_width as usize)));
+            Row::new(cells)
+        });
 
     let column_widths: Vec<Constraint> = if let Some(weights) = &config.columnweight {
         let sum: u16 = weights.iter().copied().sum();
@@ -340,7 +346,7 @@ fn render_table<B: tui::backend::Backend>(
         vec![Constraint::Length(max_width); config.headers.len()]
     };
 
-    let block_title = if let Some(e) = error {
+    let title = if let Some(e) = error {
         format!("{} (ERROR: {})", config.title, e)
     } else {
         config.title.clone()
@@ -350,13 +356,15 @@ fn render_table<B: tui::backend::Backend>(
         .header(header)
         .block(
             Block::default()
-                .title(block_title)
+                .title(title)
                 .borders(Borders::ALL)
-                .style(if error.is_some() {
-                    Style::default().fg(tui::style::Color::Red)
-                } else {
-                    Style::default()
-                }),
+                .style(
+                    if error.is_some() {
+                        Style::default().fg(Color::Red)
+                    } else {
+                        Style::default()
+                    },
+                ),
         )
         .widths(&column_widths);
 
