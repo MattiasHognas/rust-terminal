@@ -10,6 +10,7 @@ use std::{
     fs::File,
     io::{self, Read},
     sync::mpsc::channel,
+    sync::mpsc::Receiver,
     time::{Duration, Instant},
 };
 use ratatui::{
@@ -104,8 +105,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     loop {
         terminal.draw(|f| {
-            let term_width = f.size().width;
-            let term_height = f.size().height;
+            let term_width = f.area().width;
+            let term_height = f.area().height;
             let mut current_x = 0;
             let mut current_y = 0;
             let mut max_row_height = 0;
@@ -310,7 +311,7 @@ fn truncate(text: &str, max: usize) -> String {
 }
 
 fn render_table(
-    f: &mut ratatui::Frame<CrosstermBackend<std::io::Stdout>>,
+    f: &mut ratatui::Frame,
     area: Rect,
     config: &TableConfig,
     data: &[Vec<String>],
