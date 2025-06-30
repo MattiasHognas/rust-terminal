@@ -353,7 +353,7 @@ fn render_table(
         config.title.clone()
     };
 
-    let table = Table::new(rows)
+    let table = Table::new(rows, column_widths)
         .header(header)
         .block(
             Block::default()
