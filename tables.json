@@ -5,7 +5,8 @@
     "columnweight": [2,1,3],
     "align": "below",
     "maxwidth": 20,
-    "maxheight": 3,
+    "maxrows": 3,
+    "maxrowheight": 1,
     "source": {
       "type": "static",
       "data": [
@@ -20,7 +21,8 @@
     "columnweight": [3,1],
     "align": "right",
     "maxwidth": 15,
-    "maxheight": 4,
+    "maxrows": 3,
+    "maxrowheight": 2,
     "source": {
       "type": "file",
       "path": "scores.json",
@@ -33,8 +35,8 @@
     "headers": ["Item", "Value"],
     "columnweight": [2,2],
     "align": "below",
-    "maxwidth": 25,
-    "maxheight": 5,
+    "maxrows": 3,
+    "maxrowheight": 2,
     "source": {
       "type": "url",
       "url": "https://example.com/data.json",
