@@ -1,18 +1,18 @@
 [
-  {
-    "game": "Tetris",
-    "score": 1240
-  },
-  {
-    "game": "Snake",
-    "score": 980
-  },
-  {
-    "game": "Pac-Man",
-    "score": 1570
-  },
-  {
-    "game": "Space Invaders",
-    "score": 1120
-  }
+  [
+    "Tetris",
+    "1240"
+  ],
+  [
+    "Snake",
+    "980"
+  ],
+  [
+    "Pac-Man",
+    "1570"
+  ],
+  [
+    "Space Invaders",
+    "1120"
+  ]
 ]

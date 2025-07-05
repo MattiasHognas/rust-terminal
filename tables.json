@@ -1,47 +1,81 @@
-[
-  {
-    "title": "Static Users",
-    "headers": ["Name", "Age", "Email"],
-    "columnweight": [2,1,3],
-    "align": "below",
-    "maxwidth": 20,
-    "maxrows": 3,
-    "maxrowheight": 1,
-    "source": {
-      "type": "static",
-      "data": [
-        ["Alice", "30", "alice@example.com"],
-        ["Bob", "25", "bob@example.com"]
-      ]
-    }
-  },
-  {
-    "title": "Scores From File",
-    "headers": ["Game", "Score"],
-    "columnweight": [3,1],
-    "align": "right",
-    "maxwidth": 15,
-    "maxrows": 3,
-    "maxrowheight": 2,
-    "source": {
-      "type": "file",
-      "path": "scores.json",
-      "refresh_secs": 10,
-      "mapping": ["game", "score"]
-    }
-  },
-  {
-    "title": "Live API",
-    "headers": ["Item", "Value"],
-    "columnweight": [2,2],
-    "align": "below",
-    "maxrows": 3,
-    "maxrowheight": 2,
-    "source": {
-      "type": "url",
-      "url": "https://example.com/data.json",
-      "refresh_secs": 15,
-      "mapping": ["item", "value"]
-    }
-  }
-]
+{
+  "tables": [
+    [
+      {
+        "id": "users",
+        "table_header": "User Overview",
+        "column_headers": ["Name", "Email", "Role"],
+        "column_ratios": [30, 50, 20],
+        "max_cell_height": 3,
+        "design": {
+          "border": { "color": "#506351" },
+          "header": { "color": "#658c67" },
+          "column": { "color": "#446345" },
+          "cell": { "color": "#244325" }
+        },
+        "source": {
+          "type": "static",
+          "data": [["Alice", "3", "a@example.com"]]
+        }
+      },
+      {
+        "id": "logs",
+        "table_header": "Game logs",
+        "column_headers": ["Game", "Score"],
+        "column_ratios": [70, 30],
+        "max_cell_height": 3,
+        "design": {
+          "border": { "color": "#4c5961" },
+          "header": { "color": "#7995a6" },
+          "column": { "color": "#587180" },
+          "cell": { "color": "#425966" }
+        },
+        "source": { "type": "file", "path": "./scores.json" }
+      }
+    ],
+    [
+      {
+        "id": "some-more-users",
+        "table_header": "User Overview",
+        "column_headers": ["Name", "Email"],
+        "column_ratios": [50, 50],
+        "max_cell_height": 3,
+        "design": {
+          "border": { "color": "#635850" },
+          "header": { "color": "#997e6b" },
+          "column": { "color": "#806857" },
+          "cell": { "color": "#665142" }
+        },
+        "source": { "type": "static", "data": [["Alice", "a@example.com"]] }
+      },
+      {
+        "id": "logs2",
+        "table_header": "Game logs 2",
+        "column_headers": ["Game", "Score"],
+        "column_ratios": [70, 30],
+        "max_cell_height": 3,
+        "design": {
+          "border": { "color": "#4c5961" },
+          "header": { "color": "#7995a6" },
+          "column": { "color": "#587180" },
+          "cell": { "color": "#425966" }
+        },
+        "source": { "type": "file", "path": "./scores.json" }
+      },
+      {
+        "id": "logs3",
+        "table_header": "Game logs 3",
+        "column_headers": ["Game", "Score"],
+        "column_ratios": [70, 30],
+        "max_cell_height": 3,
+        "design": {
+          "border": { "color": "#4c5961" },
+          "header": { "color": "#7995a6" },
+          "column": { "color": "#587180" },
+          "cell": { "color": "#425966" }
+        },
+        "source": { "type": "file", "path": "./scores.json" }
+      }
+    ]
+  ]
+}

@@ -2,9 +2,7 @@
 
 ## Development
 cargo check
-
-## Test
 cargo test
 
-## Bulld
+## Build
 cargo build

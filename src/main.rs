@@ -1,372 +1,57 @@
-use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
-use notify::{RecommendedWatcher, RecursiveMode, Watcher, EventKind};
-use serde::Deserialize;
-use std::{
-    error::Error,
-    fs::File,
-    io::{self, Read},
-    sync::mpsc::channel,
-    sync::mpsc::Receiver,
-    time::{Duration, Instant},
-};
-use ratatui::{
-    backend::CrosstermBackend,
-    layout::{Constraint, Rect},
-    style::{Modifier, Style, Color},
-    widgets::{Block, Borders, Cell, Row, Table},
-    Terminal,
-};
-use reqwest::blocking;
-use serde_json::Value;
+mod config;
+mod data_loader;
+mod render;
+mod watcher;
 
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
-enum Align {
-    Right,
-    Below,
-}
+use config::AppConfig;
+use data_loader::load_all_table_data;
+use render::render_app;
+use std::{sync::{Arc, Mutex}};
+use crossterm::terminal::{enable_raw_mode};
+use crossterm::event::{self, Event as CEvent, KeyCode};
+use ratatui::backend::CrosstermBackend;
+use ratatui::Terminal;
+use std::io::stdout;
+use std::sync::mpsc::channel;
+use watcher::setup_watcher;
 
-#[derive(Deserialize, Debug, Clone)]
-#[serde(tag = "type", rename_all = "lowercase")]
-enum TableSource {
-    Static {
-        data: Vec<Vec<String>>,
-    },
-    File {
-        path: String,
-        refresh_secs: u64,
-        mapping: Option<Vec<String>>,
-    },
-    Url {
-        url: String,
-        refresh_secs: u64,
-        mapping: Option<Vec<String>>,
-    },
-}
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config_path = "tables.json";
+    let app_config = AppConfig::load_from_file(config_path)?;
 
-#[derive(Deserialize, Debug, Clone)]
-struct TableConfig {
-    title: String,
-    headers: Vec<String>,
-    columnweight: Option<Vec<u16>>,
-    align: Align,
-    maxwidth: Option<u16>,
-    maxrows: Option<usize>,         // formerly maxheight
-    maxrowheight: Option<u16>,      // visual height per row
-    source: TableSource,
-}
-
-struct RuntimeTable {
-    config: TableConfig,
-    last_update: Instant,
-    data: Vec<Vec<String>>,
-    last_error: Option<String>,
-    retry_count: u32,
-    backoff_until: Instant,
-}
-
-const MAX_RETRIES: u32 = 3;
-const INITIAL_BACKOFF_SECS: u64 = 5;
-
-fn main() -> Result<(), Box<dyn Error>> {
     enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
+    let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;
 
-    let config_path = "tables.json";
-    let table_configs = read_config(config_path)?;
-    let mut runtime_tables: Vec<RuntimeTable> = table_configs
-        .into_iter()
-        .map(|cfg| {
-            let (data, err) = match load_table_data(&cfg.source) {
-                Ok(d) => (d, None),
-                Err(e) => (vec![vec!["".to_string()]], Some(e)),
-            };
-            RuntimeTable {
-                config: cfg,
-                last_update: Instant::now(),
-                data,
-                last_error: err,
-                retry_count: 0,
-                backoff_until: Instant::now(),
-            }
-        })
-        .collect();
+    let config_arc = Arc::new(Mutex::new(app_config));
+    let config_clone = config_arc.clone();
 
-    let (_watcher, rx) = setup_watcher(config_path);
-    let tick_rate = Duration::from_millis(250);
-    let mut last_tick = Instant::now();
+    let (tx, rx) = channel();
+    let _watcher = setup_watcher(config_path, tx)?;
 
     loop {
-        terminal.draw(|f| {
-            let term_width = f.area().width;
-            let term_height = f.area().height;
-            let mut current_x = 0;
-            let mut current_y = 0;
-            let mut max_row_height = 0;
-            let mut positions = Vec::new();
-
-            for table in &runtime_tables {
-                let row_count = table
-                    .data
-                    .len()
-                    .min(table.config.maxrows.unwrap_or(usize::MAX));
-                let per_row_height = table.config.maxrowheight.unwrap_or(1);
-                let header_height = 1;
-                let table_height = (row_count as u16 * per_row_height) + header_height;
-
-                let table_width = term_width / 2;
-
-                if current_x + table_width > term_width || matches!(table.config.align, Align::Below) {
-                    current_x = 0;
-                    current_y += max_row_height;
-                    max_row_height = 0;
+        if event::poll(std::time::Duration::from_millis(500))? {
+            match event::read()? {
+                CEvent::Resize(_, _) => {
+                    let guard = config_arc.lock().unwrap();
+                    render_app(&mut terminal, &guard)?;
                 }
-
-                if current_y + table_height > term_height {
-                    break;
-                }
-
-                let area = Rect {
-                    x: current_x,
-                    y: current_y,
-                    width: table_width.min(term_width - current_x),
-                    height: table_height.min(term_height - current_y),
-                };
-                positions.push(area);
-
-                current_x += area.width;
-                max_row_height = max_row_height.max(area.height);
-            }
-
-            for (i, table) in runtime_tables.iter().enumerate() {
-                if i < positions.len() {
-                    render_table(f, positions[i], &table.config, &table.data, &table.last_error);
-                }
-            }
-        })?;
-
-        if event::poll(tick_rate)? {
-            if let Event::Key(key) = event::read()? {
-                if key.code == KeyCode::Char('q') {
-                    break;
-                }
-            }
-        }
-
-        if let Ok(_) = rx.try_recv() {
-            let updated_configs = read_config(config_path)?;
-            runtime_tables = updated_configs
-                .into_iter()
-                .map(|cfg| {
-                    let (data, err) = match load_table_data(&cfg.source) {
-                        Ok(d) => (d, None),
-                        Err(e) => (vec![vec!["".to_string()]], Some(e)),
-                    };
-                    RuntimeTable {
-                        config: cfg,
-                        last_update: Instant::now(),
-                        data,
-                        last_error: err,
-                        retry_count: 0,
-                        backoff_until: Instant::now(),
-                    }
-                })
-                .collect();
-        }
-
-        for table in runtime_tables.iter_mut() {
-            match &table.config.source {
-                TableSource::File { refresh_secs, .. }
-                | TableSource::Url { refresh_secs, .. } => {
-                    if Instant::now() < table.backoff_until {
-                        continue;
-                    }
-
-                    if table.last_update.elapsed().as_secs() >= *refresh_secs {
-                        match load_table_data(&table.config.source) {
-                            Ok(data) => {
-                                table.data = data;
-                                table.last_error = None;
-                                table.retry_count = 0;
-                                table.backoff_until = Instant::now();
-                            }
-                            Err(e) => {
-                                table.last_error = Some(e.clone());
-                                table.retry_count += 1;
-                                if table.retry_count >= MAX_RETRIES {
-                                    let delay = INITIAL_BACKOFF_SECS
-                                        * (1 << (table.retry_count - MAX_RETRIES));
-                                    table.backoff_until = Instant::now() + Duration::from_secs(delay);
-                                }
-                            }
-                        }
-
-                        table.last_update = Instant::now();
-                    }
-                }
+                CEvent::Key(key) if key.code == KeyCode::Char('q') => break Ok(()),
                 _ => {}
             }
         }
 
-        if last_tick.elapsed() >= tick_rate {
-            last_tick = Instant::now();
+        if let Ok(_event) = rx.try_recv() {
+            let new_config = AppConfig::load_from_file(config_path)?;
+            *config_clone.lock().unwrap() = new_config;
+        }
+
+        {
+            let mut guard = config_arc.lock().unwrap();
+            load_all_table_data(&mut guard)?;
+            render_app(&mut terminal, &guard)?;
         }
     }
 
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-    Ok(())
-}
-
-fn read_config(path: &str) -> Result<Vec<TableConfig>, Box<dyn Error>> {
-    let mut file = File::open(path)?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    let config: Vec<TableConfig> = serde_json::from_str(&contents)?;
-    Ok(config)
-}
-
-fn setup_watcher(path: &str) -> (RecommendedWatcher, Receiver<()>) {
-    let (tx, rx) = channel();
-
-    let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-        if let Ok(event) = res {
-            if matches!(event.kind, EventKind::Modify(_)) {
-                let _ = tx.send(());
-            }
-        }
-    }).expect("Failed to create watcher");
-
-    watcher
-        .watch(std::path::Path::new(path), RecursiveMode::NonRecursive)
-        .expect("Failed to watch config file");
-
-    (watcher, rx)
-}
-
-fn load_table_data(source: &TableSource) -> Result<Vec<Vec<String>>, String> {
-    match source {
-        TableSource::Static { data } => Ok(data.clone()),
-        TableSource::File { path, mapping, .. } => {
-            let text = std::fs::read_to_string(path).map_err(|e| format!("File error: {}", e))?;
-            parse_mapped_json(&text, mapping.clone())
-        }
-        TableSource::Url { url, mapping, .. } => {
-            let text = blocking::get(url)
-                .and_then(|r| r.text())
-                .map_err(|e| format!("HTTP error: {}", e))?;
-            parse_mapped_json(&text, mapping.clone())
-        }
-    }
-}
-
-fn parse_mapped_json(text: &str, mapping: Option<Vec<String>>) -> Result<Vec<Vec<String>>, String> {
-    let json: Value = serde_json::from_str(text).map_err(|e| format!("JSON error: {}", e))?;
-    let array = json.as_array().ok_or("Expected array of objects")?;
-
-    match mapping {
-        Some(keys) => Ok(array
-            .iter()
-            .map(|obj| {
-                keys.iter()
-                    .map(|k| {
-                        obj.get(k)
-                            .map(|v| format_value(v))
-                            .unwrap_or_else(|| "null".to_string())
-                    })
-                    .collect()
-            })
-            .collect()),
-        None => Err("Missing mapping".to_string()),
-    }
-}
-
-fn format_value(v: &Value) -> String {
-    match v {
-        Value::String(s) => s.clone(),
-        _ => v.to_string(),
-    }
-}
-
-fn truncate(text: &str, max: usize) -> String {
-    if text.len() > max {
-        let mut cut = text.chars().take(max.saturating_sub(3)).collect::<String>();
-        cut.push_str("...");
-        cut
-    } else {
-        text.to_string()
-    }
-}
-
-fn render_table(
-    f: &mut ratatui::Frame,
-    area: Rect,
-    config: &TableConfig,
-    data: &[Vec<String>],
-    error: &Option<String>,
-) {
-    let max_width = config.maxwidth.unwrap_or(20);
-    let max_rows = config.maxrows.unwrap_or(data.len());
-
-    let header_cells = config
-        .headers
-        .iter()
-        .map(|h| {
-            Cell::from(truncate(h, max_width as usize))
-                .style(Style::default().add_modifier(Modifier::BOLD))
-        });
-    let header = Row::new(header_cells).bottom_margin(1);
-
-    let rows = data
-        .iter()
-        .take(max_rows)
-        .map(|row| {
-            let cells = row.iter().map(|c| Cell::from(truncate(c, max_width as usize)));
-            Row::new(cells)
-        });
-
-    let column_widths: Vec<Constraint> = if let Some(weights) = &config.columnweight {
-        let sum: u16 = weights.iter().copied().sum();
-        weights
-            .iter()
-            .map(|w| Constraint::Ratio(*w as u32, sum as u32))
-            .collect()
-    } else {
-        vec![Constraint::Length(max_width); config.headers.len()]
-    };
-
-    let title = if let Some(e) = error {
-        format!("{} (ERROR: {})", config.title, e)
-    } else {
-        config.title.clone()
-    };
-
-    let table = Table::new(rows, column_widths)
-        .header(header)
-        .block(
-            Block::default()
-                .title(title)
-                .borders(Borders::ALL)
-                .style(
-                    if error.is_some() {
-                        Style::default().fg(Color::Red)
-                    } else {
-                        Style::default()
-                    },
-                ),
-        );
-
-    f.render_widget(table, area);
+    // disable_raw_mode()?; // unreachable
 }

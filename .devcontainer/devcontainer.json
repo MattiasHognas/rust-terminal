@@ -1,9 +1,22 @@
 {
-  "name": "Rust Dev Container",
-  "image": "mcr.microsoft.com/devcontainers/rust:1",
+  "name": "rust-terminal-devcontainer",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
-    "git": "latest"
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2.12.2": {
+      "version": "latest",
+      "moby": true
+    }
   },
+  // "mounts": [
+  //   "source=${localWorkspaceFolder}\\tables.json,target=/workspace/tables.json,type=bind",
+  //   "source=${localWorkspaceFolder}\\scores.json,target=/workspace/scores.json,type=bind"
+  // ],
   "customizations": {
     "vscode": {
       "extensions": [
@@ -13,9 +26,5 @@
       ]
     }
   },
-  "mounts": [
-    "source=${localWorkspaceFolder}/tables.json,target=/workspace/tables.json,type=bind",
-    "source=${localWorkspaceFolder}/scores.json,target=/workspace/scores.json,type=bind"
-  ],
   "postCreateCommand": "cargo check"
 }
