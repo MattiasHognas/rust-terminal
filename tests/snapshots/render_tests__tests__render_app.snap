@@ -1,0 +1,15 @@
+---
+source: tests/render_tests.rs
+assertion_line: 75
+expression: terminal.backend()
+---
+"┌Table header 1─────────┐┌Table header 2─────────┐"
+"│Column head Column head││Column  Column  Column │"
+"│Cell value  Cell value ││Cell va Cell va Cell va│"
+"│                       ││                       │"
+"└───────────────────────┘└───────────────────────┘"
+"┌Table header 3──────────────────────────────────┐"
+"│Column header 1                                 │"
+"│Cell value 1                                    │"
+"│                                                │"
+"└────────────────────────────────────────────────┘"
